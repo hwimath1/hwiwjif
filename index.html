@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <title>해의 조건이 있는 일차방정식의 풀이</title>
+  <!-- MathJax 로드 -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+  <style>
+    body {
+      margin: 0; padding: 0;
+      font-family: sans-serif;
+      background: #f0f7ff;
+      color: #333;
+    }
+    h1, h2, h3 {
+      text-align: center;
+    }
+    #startScreen, #quizScreen, #endScreen {
+      width: 80%;
+      max-width: 700px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #fff;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    #difficultySelect, #nameInput {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1em;
+    }
+    .center {
+      text-align: center;
+    }
+    #energyBarContainer {
+      width: 100%;
+      background: #ddd;
+      height: 20px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    #energyBar {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to right, #66ccff, #3399ff);
+    }
+    .choiceButton {
+      display: block;
+      margin: 8px 0;
+      padding: 8px;
+      width: 100%;
+      background: #eee;
+      border: 1px solid #aaa;
+      border-radius: 3px;
+      cursor: pointer;
+      text-align: left;
+      color: #000;
+    }
+    .choiceButton:hover {
+      background: #e0f0ff;
+    }
+    #scoreDisplay, #timeDisplay, #chanceDisplay {
+      font-size: 0.9em;
+      margin: 5px;
+    }
+    #response {
+      white-space: pre-wrap;
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin: 10px 0;
+      min-height: 50px;
+    }
+    button {
+      cursor: pointer;
+      padding: 8px 16px;
+      margin: 5px;
+      border: none;
+      border-radius: 4px;
+      background: #3399ff;
+      color: white;
+    }
+    button:hover {
+      background: #228be6;
+    }
+  </style>
+</head>
+<body>
+<div id="startScreen">
+  <h1>해의 조건이 있는 일차방정식의 풀이</h1>
+  <div id="nameInput">
+    <label for="playerName">이름을 입력하세요:</label>
+    <input type="text" id="playerName" placeholder="이름">
+  </div>
+  <div id="difficultySelect">
+    <h3>난이도를 선택하세요</h3>
+    <button onclick="startGame('최상')">최상 (25초 시작, 문제 당 20점)</button>
+    <button onclick="startGame('상')">상 (35초 시작, 문제 당 15점)</button>
+    <button onclick="startGame('중')">중 (45초 시작, 문제 당 13점)</button>
+    <button onclick="startGame('하')">하 (무제한, 문제 당 10점)</button>
+  </div>
+</div>
+
+<div id="quizScreen" style="display:none;">
+  <div class="center">
+    <div id="timeDisplay"></div>
+    <div id="scoreDisplay"></div>
+    <div id="chanceDisplay"></div>
+    <div id="energyBarContainer">
+      <div id="energyBar"></div>
+    </div>
+  </div>
+  <div id="questionContainer"></div>
+</div>
+
+<div id="endScreen" style="display:none;">
+  <h2 class="center">퀴즈 종료</h2>
+  <div id="finalInfo" class="center"></div>
+  <div class="center">
+    <button onclick="sendScore()">점수 전송</button>
+    <div id="response"></div>
+  </div>
+</div>
+
+<script>
+/***************************************************
+ * 난이도별 초기 시간 & 점수
+ ***************************************************/
+function getBaseTime(difficulty) {
+  switch(difficulty) {
+    case '최상': return 25;
+    case '상':   return 35;
+    case '중':   return 45;
+    case '하':   return Infinity;
+    default:     return 45;
+  }
+}
+function getScoreForDifficulty(difficulty) {
+  switch(difficulty) {
+    case '최상': return 20;
+    case '상':   return 15;
+    case '중':   return 13;
+    case '하':   return 10;
+    default:     return 10;
+  }
+}
+
+/***************************************************
+ * 문제 데이터 (총 45문항), 불필요한 문자는 제거
+ ***************************************************/
+const allQuestions = [
+
+  // 1~11
+  {
+    question: "일차방정식 \\(x + 3a = 10\\)의 해가 \\(x = -2\\)일 때, 상수 \\(a\\)의 값을 구하시오.",
+    choices: [
+      "(A) 4",
+      "(B) -1",
+      "(C) 0",
+      "(D) 2"
+    ],
+    correct: "A"
+  },
+  {
+    question: "일차방정식 \\(4x - 5 = -(x - 3) + 2a\\)의 해가 \\(x = 4\\)일 때, 상수 \\(a\\)의 값을 구하시오.",
+    choices: [
+      "(A) 6",
+      "(B) -4",
+      "(C) 0",
+      "(D) 2"
+    ],
+    correct: "A"
+  },
+  {
+    question: "일차방정식 \\(\\dfrac{3}{4}(x + a) = \\dfrac{2}{3} - \\dfrac{1}{2}x\\)의 해가 \\(x = -\\dfrac{1}{3}\\)일 때, 상수 \\(a\\)의 값을 구하시오.",
+    choices: [
+      "(A) \\(\\dfrac{1}{3}\\)",
+      "(B) 2",
+      "(C) \\(-\\dfrac{1}{3}\\)",
+      "(D) \\(\\dfrac{3}{4}\\)"
+    ],
+    correct: "A"
+  },
+  {
+    question: "일차방정식 \\(\\dfrac{2x - 1}{3} - \\dfrac{ax - 8}{6} = a\\)의 해가 \\(x = 3\\)일 때, 상수 \\(a\\)의 값을 구하시오.",
+    choices: [
+      "(A) -2",
+      "(B) 2",
+      "(C) 3",
+      "(D) -3"
+    ],
+    correct: "B"
+  },
+  {
+    question: "일차방정식 \\(a(2x - 1) + 5x = -x - 7\\)의 해가 \\(x = 3\\)일 때, 상수 \\(a\\)의 값을 구하시오.",
+    choices: [
+      "(A) -5",
+      "(B) 5",
+      "(C) -3",
+      "(D) 0"
+    ],
+    correct: "A"
+  },
+  {
+    question: "일차방정식 \\(0.2(2x - 3) - \\dfrac{2}{5} = 0.1x + a\\)의 해가 \\(x = 4\\)일 때, 상수 \\(a\\)는 얼마인가?",
+    choices: [
+      "(A) \\(\\dfrac{1}{5}\\)",
+      "(B) \\(-\\dfrac{1}{5}\\)",
+      "(C) 1",
+      "(D) 0"
+    ],
+    correct: "A"
+  },
+  {
+    question: "일차방정식 \\(2(x - 1) - \\dfrac{x}{3} = ax + 3\\)의 해가 \\(x = -2\\)일 때, 상수 \\(a\\)는 얼마인가?",
+    choices: [
+      "(A) 4",
+      "(B) -4",
+      "(C) 2",
+      "(D) -3"
+    ],
+    correct: "B"
+  },
+  {
+    question: "일차방정식 \\(3(2x - 3) + 2ax = 4a - 1\\)의 해가 \\(x = 4\\)일 때, 상수 \\(a\\)는 얼마인가?",
+    choices: [
+      "(A) -3",
+      "(B) -4",
+      "(C) 6",
+      "(D) 4"
+    ],
+    correct: "B"
+  },
+  {
+    question: "일차방정식 \\(7(x + 5) + ax = 27\\)의 해가 \\(x = -2\\)일 때, 상수 \\(a\\)는 얼마인가?",
+    choices: [
+      "(A) -5",
+      "(B) -4",
+      "(C) -3",
+      "(D) 3"
+    ],
+    correct: "C"
+  },
+  {
+    question: "일차방정식 \\(4(x + a) - 2 = 8x\\)의 해가 \\(x = \\dfrac{1}{4}\\)일 때, 상수 \\(a\\)는 얼마인가?",
+    choices: [
+      "(A) \\(\\dfrac{1}{4}\\)",
+      "(B) \\(\\dfrac{3}{4}\\)",
+      "(C) 1",
+      "(D) \\(-\\dfrac{3}{4}\\)"
+    ],
+    correct: "B"
+  },
+  {
+    question: "일차방정식 \\(x - 2a = 4x + a\\)의 해가 \\(x = \\dfrac{1}{2}\\)일 때, 상수 \\(a\\)는 얼마인가?",
+    choices: [
+      "(A) \\(-\\dfrac{1}{2}\\)",
+      "(B) \\(\\dfrac{1}{2}\\)",
+      "(C) -2",
+      "(D) \\(\\dfrac{3}{2}\\)"
+    ],
+    correct: "A"
+  },
+
+  // 13~16
+  {
+    question: "일차방정식 \\(a(x - 2) = 6\\)의 해가 \\(x = -1\\)이고, \\(-12(x - 1) + bx = 10\\)의 해가 \\(x = 2\\)일 때, \\(ab\\)의 값을 구하여라.",
+    choices: [
+      "(A) -22",
+      "(B) -12",
+      "(C) 0",
+      "(D) 22"
+    ],
+    correct: "A"
+  },
+  {
+    question: "\\(x\\)에 대한 일차방정식 \\(\\dfrac{x + 3}{3} - \\dfrac{2x - a}{2} = 2\\)의 해가 \\(x = 3\\)이고, 그에 대한 일차방정식 \\(b - 2(x - 2) = 16 - 3x\\)의 해가 \\(x = -3\\)일 때, 상수 \\(a,b\\)에 대하여 \\(a - b\\)값을 구하여라.",
+    choices: [
+      "(A) -9",
+      "(B) -6",
+      "(C) 6",
+      "(D) 9"
+    ],
+    correct: "A"
+  },
+  {
+    question: "일차방정식 \\(a(x - 1) = 8\\)의 해가 \\(x = 3\\)이고, \\(-18(x - 2) + bx = 12\\)의 해가 \\(x = 4\\)일 때, \\(a + b\\)의 값을 구하시오.",
+    choices: [
+      "(A) -16",
+      "(B) 8",
+      "(C) 16",
+      "(D) 24"
+    ],
+    correct: "C"
+  },
+  {
+    question: "두 방정식 \\(3x + a(x - 2) = 4\\)와 \\(\\dfrac{1}{2}x + bx = 0.9\\)의 해가 \\(x = 3\\)일 때, \\(a^2 - 2ab\\)의 값을 구하여라.",
+    choices: [
+      "(A) 23",
+      "(B) -1",
+      "(C) 5",
+      "(D) 16"
+    ],
+    correct: "A"
+  },
+
+  // 18~21
+  {
+    question: "\\(x\\)에 대한 일차방정식 \\(2.6x + a = -0.8x - 7.8\\)의 해가 \\(x = -2\\)일 때, 다음 일차방정식 \\(\\dfrac{x}{6} - a = \\dfrac{x + 5}{8}\\)의 해를 구하시오.",
+    choices: [
+      "(A) -9",
+      "(B) -7",
+      "(C) 0",
+      "(D) 9"
+    ],
+    correct: "A"
+  },
+  {
+    question: "\\(x\\)에 대한 일차방정식 \\(8 + x = 6 - ax\\)의 해가 \\(x = 1\\)일 때, \\(x\\)에 대한 일차방정식 \\(a(x+2) = 4x + 1\\)의 해를 구하시오.",
+    choices: [
+      "(A) -1",
+      "(B) 1",
+      "(C) -3",
+      "(D) 3"
+    ],
+    correct: "A"
+  },
+  {
+    question: "\\(x\\)에 대한 일차방정식 \\(a(2x - 1) = -x - 7\\)의 해가 \\(x = 3\\)일 때, 일차방정식 \\(0.5x + a = 0.2x - 0.8\\)의 해를 구하시오.",
+    choices: [
+      "(A) -4",
+      "(B) 4",
+      "(C) 2",
+      "(D) 1"
+    ],
+    correct: "B"
+  },
+  {
+    question: "\\(x\\)에 대한 일차방정식 \\(ax + 2 = 4(x - 2)\\)의 해가 \\(x = 5\\)일 때, \\(x\\)에 대한 일차방정식 \\(4x - 3 = ax\\)의 해를 구하시오. (단, \\(a\\)는 상수)",
+    choices: [
+      "(A) \\(\\dfrac{3}{2}\\)",
+      "(B) \\(\\dfrac{1}{2}\\)",
+      "(C) \\(-\\dfrac{3}{2}\\)",
+      "(D) 2"
+    ],
+    correct: "A"
+  },
+
+  // 23~31
+  {
+    question: "다음 두 일차방정식의 해가 같을 때, 상수 \\(a\\)의 값을 구하시오.\n1) \\(1.2x + 0.8 = 0.8x + 0.9\\)\n2) \\(1.2x + 0.5 = \\dfrac{4x + a}{5}\\)",
+    choices: [
+      "(A) 3",
+      "(B) 0",
+      "(C) -1",
+      "(D) 5"
+    ],
+    correct: "A"
+  },
+  {
+    question: "다음 두 일차방정식의 해가 같을 때, 상수 \\(a\\)의 값을 구하시오.\n1) \\(2x - 16 = 4(x - 3)\\)\n2) \\(ax - 3 = 4x + 5\\)",
+    choices: [
+      "(A) -2",
+      "(B) 1",
+      "(C) 0",
+      "(D) 3"
+    ],
+    correct: "C"
+  },
+  {
+    question: "다음 두 일차방정식의 해가 같을 때, 상수 \\(a\\)의 값을 구하시오.\n1) \\(4(x + 3) = 18 + x\\)\n2) \\(a(2x - 5) = 2x + 5\\)",
+    choices: [
+      "(A) -3",
+      "(B) -9",
+      "(C) 0",
+      "(D) 9"
+    ],
+    correct: "B"
+  },
+  {
+    question: "다음 두 일차방정식의 해가 같을 때, 상수 \\(a\\)의 값을 구하시오.\n1) \\(6x - 15 = 4x - 3\\)\n2) \\(2(x + a) = 5x\\)",
+    choices: [
+      "(A) 3",
+      "(B) 6",
+      "(C) 9",
+      "(D) -9"
+    ],
+    correct: "C"
+  },
+  {
+    question: "다음 두 일차방정식의 해가 같을 때, 상수 \\(a\\)의 값을 구하시오.\n1) \\(5x - 3 = 18 - 2x\\)\n2) \\(ax - 5(x - 1) = 8\\)",
+    choices: [
+      "(A) 2",
+      "(B) 6",
+      "(C) -1",
+      "(D) 10"
+    ],
+    correct: "B"
+  },
+  {
+    question: "다음 두 일차방정식의 해가 같을 때, 상수 \\(a\\)의 값을 구하시오.\n1) \\(3x - 5(2 - x) = 6\\)\n2) \\(\\dfrac{ax + 5}{6} = \\dfrac{3}{4}x - \\dfrac{1}{2}\\)",
+    choices: [
+      "(A) \\(\\dfrac{1}{2}\\)",
+      "(B) 1",
+      "(C) \\(-\\dfrac{1}{2}\\)",
+      "(D) 2"
+    ],
+    correct: "A"
+  },
+  {
+    question: "다음 두 일차방정식의 해가 같을 때, 상수 \\(a\\)의 값을 구하시오.\n1) \\(4x + 1 = 3(x - 2)\\)\n2) \\(2x = 35 - ax\\)",
+    choices: [
+      "(A) -7",
+      "(B) -3",
+      "(C) 3",
+      "(D) 7"
+    ],
+    correct: "A"
+  },
+  {
+    question: "다음 두 일차방정식의 해가 같을 때, 상수 \\(a\\)의 값을 구하시오.\n1) \\(\\dfrac{3}{2}x - 2 = 4x + \\dfrac{1}{2}\\)\n2) \\(ax + 7 = -x + a\\)",
+    choices: [
+      "(A) -3",
+      "(B) 1",
+      "(C) 3",
+      "(D) 5"
+    ],
+    correct: "C"
+  },
+  {
+    question: "다음 두 일차방정식의 해가 같을 때, 상수 \\(a\\)의 값을 구하시오.\n1) \\(2.6x - 1 = -0.8x - 7.8\\)\n2) \\(\\dfrac{a(x+4)}{3}, \\dfrac{2 - ax}{4} = \\dfrac{1}{6}\\)",
+    choices: [
+      "(A) 4",
+      "(B) -1",
+      "(C) 6",
+      "(D) 0"
+    ],
+    correct: "A"
+  },
+
+  // 38~41
+  {
+    question: "다음 두 일차방정식을 만족하는 해가 \\(x = b\\)일 때, \\(b - a\\)값을 구하여라.\n1) \\(\\dfrac{x - 4}{5} - \\dfrac{x - 3}{2} = -2\\)\n2) \\(\\dfrac{x + a}{4} - (x + 3) = a\\)",
+    choices: [
+      "(A) 22",
+      "(B) 0",
+      "(C) -22",
+      "(D) 10"
+    ],
+    correct: "A"
+  },
+  {
+    question: "다음 두 일차방정식의 해가 같다고 하자. 그 공통 해를 \\(x=a\\)라 할 때, \\(\\dfrac{a}{3} - \\dfrac{b}{2}\\)의 값을 구하여라.\n1) \\(\\dfrac{x}{6} - 1 = \\dfrac{x - 4}{8}\\)\n2) \\(2x - (6 - 5x) = 3(x - b)\\)",
+    choices: [
+      "(A) 11",
+      "(B) -11",
+      "(C) 1",
+      "(D) 7"
+    ],
+    correct: "A"
+  },
+  {
+    question: "다음 세 일차방정식의 해가 모두 같을 때, \\(a, b\\)에 대하여 \\(2a - b\\)의 값을 구하여라.\n1) \\(\\dfrac{1}{3}(6x - 2) = x + \\dfrac{7}{3}\\)\n2) \\(2x - 2 = a\\)\n3) \\(x + 9 = -2(x - \\dfrac{b}{3}x)\\)",
+    choices: [
+      "(A) -1",
+      "(B) 1",
+      "(C) 0",
+      "(D) 2"
+    ],
+    correct: "A"
+  },
+  {
+    question: "다음 세 방정식의 해가 같을 때, \\(a + b\\)의 값을 구하여라.\n1) \\(x - 24 = 16x + 21\\)\n2) \\(\\dfrac{1}{3}(x + 9) = 2a - 4\\)\n3) \\(2(x + 3.7) = b - 5.6\\)",
+    choices: [
+      "(A) 10",
+      "(B) 0",
+      "(C) -1",
+      "(D) 12"
+    ],
+    correct: "A"
+  },
+
+  // 59~63
+  {
+    question: "주어진 일차방정식 \\(3(11 - 4x) = k\\)의 해가 자연수가 되도록 하는 모든 자연수 \\(k\\)의 값의 합을 구하시오.",
+    choices: [
+      "(A) 24",
+      "(B) 21",
+      "(C) 18",
+      "(D) 30"
+    ],
+    correct: "D"
+  },
+  {
+    question: "주어진 일차방정식 \\(12 - 3x = 3k\\)의 해가 자연수가 되도록 하는 모든 자연수 \\(k\\)의 값의 합을 구하시오.",
+    choices: [
+      "(A) 3",
+      "(B) 10",
+      "(C) 6",
+      "(D) 12"
+    ],
+    correct: "C"
+  },
+  {
+    question: "주어진 일차방정식 \\(x - \\dfrac{1}{5}(x - 2k) = 4\\)의 해가 자연수가 되도록 하는 모든 자연수 \\(k\\)의 값의 합을 구하시오.",
+    choices: [
+      "(A) 10",
+      "(B) 16",
+      "(C) 18",
+      "(D) 20"
+    ],
+    correct: "D"
+  },
+  {
+    question: "주어진 일차방정식 \\(kx - 1 = 8\\)의 해가 자연수가 되도록 하는 모든 자연수 \\(k\\)의 값의 합을 구하시오.",
+    choices: [
+      "(A) 8",
+      "(B) 10",
+      "(C) 13",
+      "(D) 15"
+    ],
+    correct: "C"
+  },
+  {
+    question: "주어진 일차방정식 \\(2(7 - 3x) = k\\)의 해가 자연수가 되도록 하는 모든 자연수 \\(k\\)의 값의 합을 구하시오.",
+    choices: [
+      "(A) 6",
+      "(B) 10",
+      "(C) 12",
+      "(D) 14"
+    ],
+    correct: "B"
+  },
+
+  // 66~69
+  {
+    question: "\\(x\\)에 대한 일차방정식 \\(2x - \\dfrac{2}{3}(x + a) = -4\\)의 해가 음의 정수가 되게 하는 자연수 \\(a\\)의 값 중 가장 큰 수를 구하여라.",
+    choices: [
+      "(A) 2",
+      "(B) 3",
+      "(C) 4",
+      "(D) 6"
+    ],
+    correct: "C"
+  },
+  {
+    question: "\\(x\\)에 대한 일차방정식 \\(3(x - 2) = a - (x - 4)\\)의 해가 자연수가 되도록 하는 모든 ‘음의 정수’ \\(a\\)의 값의 합을 구하여라.",
+    choices: [
+      "(A) -8",
+      "(B) -4",
+      "(C) 0",
+      "(D) 4"
+    ],
+    correct: "A"
+  },
+  {
+    question: "\\(x\\)에 대한 일차방정식 \\(x - \\dfrac{3}{5}(2x + 3a) = -4\\)의 해가 음의 정수가 되도록 하는 가장 작은 정수 \\(a\\)의 값을 구하여라.",
+    choices: [
+      "(A) -1",
+      "(B) 2",
+      "(C) 3",
+      "(D) 4"
+    ],
+    correct: "C"
+  },
+  {
+    question: "\\(x\\)에 대한 일차방정식 \\(x - 3 = \\dfrac{1}{2}(x - a)\\)의 해가 자연수가 되도록 하는 자연수 \\(a\\)의 개수를 구하여라.",
+    choices: [
+      "(A) 3",
+      "(B) 5",
+      "(C) 2",
+      "(D) 4"
+    ],
+    correct: "B"
+  },
+
+  // 86~89
+  {
+    question: "방정식 \\(8x - 3 = 2(x - 4) + 1\\)을 푸는 데 좌변의 상수항 \\(-3\\)을 잘못 보고 풀어서 해가 \\(x = -\\dfrac{1}{2}\\)이 되었다. \\(-3\\)을 어떤 수로 잘못 보았는지 구하여라.",
+    choices: [
+      "(A) -4",
+      "(B) 4",
+      "(C) -2",
+      "(D) 0"
+    ],
+    correct: "A"
+  },
+  {
+    question: "영수는 일차방정식 \\(4x + 1 = 3x - 5\\)에서 \\(3\\)을 다른 수로 잘못 보고 풀어 \\(x = -2\\)를 얻었다. 영수는 \\(3\\)을 어떤 수로 잘못 보았는지 구하여라.",
+    choices: [
+      "(A) 1",
+      "(B) -3",
+      "(C) 5",
+      "(D) 0"
+    ],
+    correct: "A"
+  },
+  {
+    question: "해가 \\(x = -1\\)인 \\(x\\)에 대한 일차방정식 \\(5x + (2a - 3) = 2\\)를 푸는데, 상수항 \\(2\\)를 잘못 보고 풀었더니 \\(x = 1\\)이 되었다. \\(2\\)를 어떤 수로 잘못 보았는지 구하여라.",
+    choices: [
+      "(A) 10",
+      "(B) 12",
+      "(C) -2",
+      "(D) 4"
+    ],
+    correct: "B"
+  },
+  {
+    question: "해가 \\(x = 2\\)인 일차방정식 \\(3(x - 1) - 5 = a - x\\)를 푸는데, 숫자 \\(-5\\)를 잘못 보고 풀었더니 \\(a = 1\\)이 나왔다. \\(-5\\)를 어떤 수로 잘못 보았는지 구하여라.",
+    choices: [
+      "(A) -4",
+      "(B) 5",
+      "(C) 0",
+      "(D) 4"
+    ],
+    correct: "A"
+  }
+];
+
+/***************************************************
+ * 전역변수
+ ***************************************************/
+let currentQuestions = [];
+let currentIndex = 0;
+let score = 0;
+let totalTime = 0;
+let remainingChances = 3;
+let timer = null;
+let energyWidth = 100;
+let timeLimit = Infinity;
+let timeLeft = Infinity;
+let difficulty = "";
+let playerName = "";
+
+/***************************************************
+ * 배열 무작위 셔플
+ ***************************************************/
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+/***************************************************
+ * 게임 시작
+ ***************************************************/
+function startGame(diff) {
+  const nameField = document.getElementById('playerName');
+  if (!nameField.value.trim()) {
+    alert("이름을 입력해주세요!");
+    return;
+  }
+  playerName = nameField.value.trim();
+  
+  difficulty = diff;
+  timeLimit = getBaseTime(diff);
+  timeLeft = timeLimit;
+  score = 0;
+  totalTime = 0;
+  remainingChances = 3;
+
+  // 문제 랜덤 순서
+  currentQuestions = [...allQuestions];
+  shuffleArray(currentQuestions);
+  currentIndex = 0;
+
+  if (timeLimit === Infinity) {
+    timeLeft = Infinity;
+  }
+
+  energyWidth = 100;
+  
+  document.getElementById('startScreen').style.display = 'none';
+  document.getElementById('quizScreen').style.display = 'block';
+  
+  updateStatusDisplay();
+  showQuestion();
+  startTimer();
+}
+
+/***************************************************
+ * 타이머 및 에너지바
+ ***************************************************/
+function startTimer() {
+  clearInterval(timer);
+  timer = setInterval(() => {
+    // 전체 경과 시간
+    totalTime++;
+
+    // 난이도가 '하'가 아니면 시간 제한 적용
+    if (timeLimit !== Infinity) {
+      timeLeft--;
+      energyWidth = (timeLeft / timeLimit) * 100;
+      if (energyWidth < 0) energyWidth = 0;
+      document.getElementById('energyBar').style.width = energyWidth + "%";
+
+      if (timeLeft < 0) {
+        // 시간초과 -> 기회 1 감소
+        loseChance();
+      }
+    }
+
+    document.getElementById('timeDisplay').textContent = 
+      (timeLimit === Infinity) 
+      ? `게임 진행 시간: ${totalTime}초 경과 (시간 제한 없음)`
+      : `게임 진행 시간: ${totalTime}초 경과`;
+  }, 1000);
+}
+
+function loseChance() {
+  remainingChances--;
+  if (remainingChances <= 0) {
+    endGame(false);
+    return;
+  }
+  // 남은 기회가 있으면 다음 문제로
+  currentIndex++;
+  if (currentIndex >= currentQuestions.length) {
+    endGame(true);
+  } else {
+    timeLeft = timeLimit;
+    energyWidth = 100;
+    document.getElementById('energyBar').style.width = "100%";
+    showQuestion();
+    updateStatusDisplay();
+  }
+}
+
+/***************************************************
+ * 문제 표시
+ ***************************************************/
+function showQuestion() {
+  const container = document.getElementById('questionContainer');
+  container.innerHTML = "";
+
+  if (currentIndex >= currentQuestions.length) {
+    endGame(true);
+    return;
+  }
+
+  const qData = currentQuestions[currentIndex];
+  
+  // 문제
+  const qDiv = document.createElement('div');
+  qDiv.innerHTML = `<p>${qData.question}</p>`;
+  container.appendChild(qDiv);
+
+  // 보기
+  qData.choices.forEach((choice, idx) => {
+    const btn = document.createElement('button');
+    btn.className = "choiceButton";
+    btn.innerHTML = choice;
+    btn.onclick = () => checkAnswer(idx);
+    container.appendChild(btn);
+  });
+
+  // 수식 렌더링
+  setTimeout(() => {
+    MathJax.typeset();
+  }, 0);
+}
+
+/***************************************************
+ * 정답 체크
+ ***************************************************/
+function checkAnswer(idx) {
+  const qData = currentQuestions[currentIndex];
+  const mapping = ['A','B','C','D'];
+  const userChoice = mapping[idx];
+
+  if (userChoice === qData.correct) {
+    score += getScoreForDifficulty(difficulty);
+  } else {
+    alert(`틀렸습니다! 정답은 (${qData.correct}) 입니다.`);
+    remainingChances--;
+    if (remainingChances <= 0) {
+      endGame(false);
+      return;
+    }
+  }
+
+  currentIndex++;
+  if (currentIndex >= currentQuestions.length) {
+    endGame(true);
+    return;
+  }
+
+  if (timeLimit !== Infinity) {
+    timeLeft = timeLimit; 
+    energyWidth = 100;
+    document.getElementById('energyBar').style.width = "100%";
+  }
+
+  showQuestion();
+  updateStatusDisplay();
+}
+
+/***************************************************
+ * 상태표시 갱신
+ ***************************************************/
+function updateStatusDisplay() {
+  document.getElementById('scoreDisplay').textContent = `점수: ${score}`;
+  document.getElementById('chanceDisplay').textContent = `남은 기회: ${remainingChances}`;
+}
+
+/***************************************************
+ * 게임 종료
+ ***************************************************/
+function endGame(success) {
+  clearInterval(timer);
+  document.getElementById('quizScreen').style.display = 'none';
+  document.getElementById('endScreen').style.display = 'block';
+  const fin = document.getElementById('finalInfo');
+  if (success) {
+    fin.textContent = `${playerName}님, 게임이 종료되었습니다! 총 점수: ${score}점`;
+  } else {
+    fin.textContent = `${playerName}님, 기회를 모두 소진하여 게임 오버! 점수: ${score}점`;
+  }
+}
+
+/***************************************************
+ * 점수 전송
+ ***************************************************/
+function sendScore() {
+  saveData("해의 조건이 있는 일차방정식의 풀이", playerName, score, totalTime);
+}
+
+/***************************************************
+ * 서버 전송 함수
+ ***************************************************/
+async function saveData(game, name, score, elapsedTime) {
+  const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+  const requestData = {
+    game,
+    name,
+    score: parseInt(score, 10),
+    elapsedTime: parseInt(elapsedTime, 10)
+  };
+  try {
+    const response = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestData)
+    });
+    const responseData = await response.json();
+    if (response.ok) {
+      document.getElementById('response').innerText =
+        `성공: ${JSON.stringify(responseData, null, 2)}`;
+    } else {
+      document.getElementById('response').innerText =
+        `오류: ${JSON.stringify(responseData, null, 2)}`;
+    }
+  } catch (error) {
+    console.error('요청 실패:', error);
+    document.getElementById('response').innerText =
+      `네트워크 오류: ${error.message}`;
+  }
+}
+</script>
+</body>
+</html>
